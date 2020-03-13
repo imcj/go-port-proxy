@@ -18,28 +18,49 @@ func main() {
 	listen, err := net.Listen(argv[1], argv[2])
 	if err != nil {
 		fmt.Println("Port listen err:", err.Error())
-		listen.Close()
-		return
+		if nil != listen {
+			if err := listen.Close(); err != nil {
+				fmt.Println("Listen close has error")
+				fmt.Println(err)
+				return
+			}
+		}
 	}
-	for {
-		client, err := listen.Accept()
-		if err != nil {
-			fmt.Println("Client->Proxy Connect Fail:", client.RemoteAddr())
-			client.Close()
-			break
-		}
+	if listen != nil {
+		for {
+			client, err := listen.Accept()
+			if err != nil && client != nil {
+				fmt.Println("Client->Proxy Connect Fail:", client.RemoteAddr())
+				if err := client.Close(); err != nil {
+					fmt.Println("Accept client close error ")
+					fmt.Println(err)
+				}
+				break
+			}
 
-		server, err := net.Dial(argv[1], argv[3])
-		if err != nil {
-			fmt.Println("Proxy->Server Connect Fail:", err.Error())
-			server.Close()
-			client.Close()
-			break
-		}
+			server, err := net.Dial(argv[1], argv[3])
+			if err != nil {
+				fmt.Println("Proxy->Server Connect Fail:", err.Error())
 
-		fmt.Println("New connection:", client.RemoteAddr().Network(), client.RemoteAddr(), "<->", argv[2], "<->", server.RemoteAddr())
-		go proxy(client, server)
-		go proxy(server, client)
+				if server != nil {
+					if err := server.Close(); err != nil {
+						fmt.Println("Server close error")
+						fmt.Println(err)
+					}
+				}
+				if client != nil {
+					if err := client.Close(); err != nil {
+						fmt.Println("Client close error")
+						fmt.Println(err)
+					}
+				}
+				break
+			}
+
+			fmt.Println("New connection:", client.RemoteAddr().Network(), client.RemoteAddr(), "<->", argv[2], "<->", server.RemoteAddr())
+			go proxy(client, server)
+			go proxy(server, client)
+		}
 	}
 }
 
@@ -48,7 +69,19 @@ func proxy(client net.Conn, server net.Conn) {
 	_, err := reader.WriteTo(server)
 	if err != nil {
 		fmt.Println("Proxy err,", err.Error())
-		client.Close()
-		server.Close()
+
+		if client != nil {
+			if err := client.Close(); err != nil {
+				fmt.Println("Proxy client has error")
+				fmt.Println(err)
+			}
+		}
+
+		if server != nil {
+			if err := server.Close(); err != nil {
+				fmt.Println("Proxy server has error")
+				fmt.Println(err)
+			}
+		}
 	}
 }
